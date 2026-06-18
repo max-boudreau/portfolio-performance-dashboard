@@ -1,0 +1,11 @@
+portfolio_id,owner,trade_date,ticker,side,quantity,price,fees,notes
+Max Growth,Max,2024-01-10,AAPL,BUY,5,185,0,Initial Apple position
+Max Growth,Max,2024-02-15,MSFT,BUY,3,410,0,Initial Microsoft position
+Max Growth,Max,2024-03-20,NVDA,BUY,2,850,0,AI exposure
+Max Growth,Max,2024-06-01,AAPL,SELL,1,195,0,Trim position
+Friend Portfolio,Friend 1,2024-01-20,TSLA,BUY,4,220,0,Tesla position
+Friend Portfolio,Friend 1,2024-02-12,AMZN,BUY,3,165,0,Amazon position
+Friend Portfolio,Friend 1,2024-04-05,GOOGL,BUY,5,145,0,Google position
+Balanced Mock,Mock,2024-01-05,SPY,BUY,10,470,0,Benchmark-like core
+Balanced Mock,Mock,2024-01-05,QQQ,BUY,5,400,0,Growth tilt
+Balanced Mock,Mock,2024-01-05,XIC.TO,BUY,20,34,0,Canadian equity exposure
