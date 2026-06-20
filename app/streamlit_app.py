@@ -27,41 +27,23 @@ from portfolio_dashboard.plots import (
     plot_monthly_heatmap,
 )
 
-st.set_page_config(
-    page_title="Portfolio Performance Analytics Dashboard",
-    layout="wide",
-)
+st.set_page_config(page_title="Portfolio Performance Analytics Dashboard", layout="wide")
 
 st.title("Portfolio Performance Analytics Dashboard")
-st.caption(
-    "Transaction-level multi-portfolio analytics with benchmarks, cost basis, "
-    "risk metrics, and sector exposure."
-)
+st.caption("Transaction-level multi-portfolio analytics with benchmarks, cost basis, risk metrics, and sector exposure.")
 
 with st.sidebar:
     st.header("Inputs")
     uploaded = st.file_uploader("Upload transactions CSV", type=["csv"])
     use_sample = st.checkbox("Use sample transactions", value=True)
-
-    primary_benchmark_name = st.selectbox(
-        "Primary benchmark",
-        list(DEFAULT_BENCHMARKS.keys()),
-        index=0,
-    )
-
-    run_sector = st.checkbox(
-        "Fetch sector data",
-        value=False,
-        help="Uses Yahoo Finance metadata. This may be slower or rate-limited.",
-    )
-
+    primary_benchmark_name = st.selectbox("Primary benchmark", list(DEFAULT_BENCHMARKS.keys()), index=0)
+    run_sector = st.checkbox("Fetch sector data", value=False, help="Uses Yahoo Finance metadata. This may be slower or rate-limited.")
     st.divider()
     st.caption("Required CSV columns:")
     st.code("portfolio_id, trade_date, ticker, side, quantity, price", language="text")
 
 
 def format_summary_table(df: pd.DataFrame, primary_ticker: str):
-    """Apply readable formatting to the metrics table."""
     format_map = {
         "Annualized Return": "{:.2%}",
         "Annualized Volatility": "{:.2%}",
@@ -85,9 +67,6 @@ try:
         st.info("Upload a transaction CSV or enable the sample dataset.")
         st.stop()
 
-    st.subheader("Transaction Ledger")
-    st.dataframe(transactions, use_container_width=True)
-
     asset_tickers = sorted(transactions["ticker"].unique())
     benchmark_tickers = list(DEFAULT_BENCHMARKS.values())
     all_tickers = sorted(set(asset_tickers + benchmark_tickers))
@@ -99,10 +78,7 @@ try:
         prices = download_prices(all_tickers, start_date, end_date)
 
     if prices.attrs.get("source") == "demo":
-        st.warning(
-            "Yahoo Finance is currently unavailable or rate-limited. The app is using "
-            "demo price data so the dashboard functionality remains visible."
-        )
+        st.warning("Yahoo Finance is currently unavailable or rate-limited. The app is using demo price data so the dashboard functionality remains visible.")
 
     holdings = build_daily_holdings(transactions, prices)
     values = portfolio_values(holdings, prices)
@@ -112,7 +88,6 @@ try:
         st.stop()
 
     p_returns = daily_returns(values)
-
     benchmark_prices = prices[benchmark_tickers]
     b_returns = benchmark_prices.pct_change().dropna()
     blended_returns = build_blended_benchmark(benchmark_prices, DEFAULT_BLEND)
@@ -125,59 +100,31 @@ try:
     for portfolio, h in holdings.items():
         current = h.iloc[-1]
         current = current[current > 0]
-
         for ticker, quantity in current.items():
             latest_price = float(prices[ticker].iloc[-1])
-            latest_rows.append(
-                {
-                    "Portfolio": portfolio,
-                    "Ticker": ticker,
-                    "Quantity": quantity,
-                    "Latest Price": latest_price,
-                    "Market Value": quantity * latest_price,
-                }
-            )
+            latest_rows.append({"Portfolio": portfolio, "Ticker": ticker, "Quantity": quantity, "Latest Price": latest_price, "Market Value": quantity * latest_price})
 
     holdings_df = pd.DataFrame(latest_rows)
     cost_df = average_cost_basis(transactions, prices.iloc[-1])
 
     metric_cols = st.columns(4)
-
-    total_market_value = holdings_df["Market Value"].sum()
-    portfolio_count = holdings_df["Portfolio"].nunique()
-    holding_count = len(holdings_df)
-    avg_sharpe = summary["Sharpe Ratio"].mean()
-
-    metric_cols[0].metric("Total Market Value", f"${total_market_value:,.0f}")
-    metric_cols[1].metric("Portfolios", f"{portfolio_count}")
-    metric_cols[2].metric("Current Holdings", f"{holding_count}")
-    metric_cols[3].metric("Average Sharpe", f"{avg_sharpe:.2f}")
+    metric_cols[0].metric("Total Market Value", f"${holdings_df['Market Value'].sum():,.0f}")
+    metric_cols[1].metric("Portfolios", f"{holdings_df['Portfolio'].nunique()}")
+    metric_cols[2].metric("Current Holdings", f"{len(holdings_df)}")
+    metric_cols[3].metric("Average Sharpe", f"{summary['Sharpe Ratio'].mean():.2f}")
 
     st.subheader("Performance Summary")
     st.dataframe(format_summary_table(summary, primary_ticker), use_container_width=True)
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["Performance", "Benchmarks", "Risk", "Holdings & Cost Basis", "Exports"]
-    )
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Performance", "Benchmarks", "Risk", "Holdings & Cost Basis", "Transactions", "Exports"])
 
     with tab1:
         st.plotly_chart(plot_values(values), use_container_width=True)
-
-        selected = st.selectbox(
-            "Select portfolio for monthly return heatmap",
-            list(values.columns),
-            key="monthly_heatmap_portfolio",
-        )
-        st.plotly_chart(
-            plot_monthly_heatmap(p_returns[selected], f"{selected} Monthly Returns"),
-            use_container_width=True,
-        )
+        selected = st.selectbox("Select portfolio for monthly return heatmap", list(values.columns), key="monthly_heatmap_portfolio")
+        st.plotly_chart(plot_monthly_heatmap(p_returns[selected], f"{selected} Monthly Returns"), use_container_width=True)
 
     with tab2:
-        st.plotly_chart(
-            plot_growth_of_100(values, benchmark_prices, blended_returns),
-            use_container_width=True,
-        )
+        st.plotly_chart(plot_growth_of_100(values, benchmark_prices, blended_returns), use_container_width=True)
 
     with tab3:
         st.plotly_chart(plot_drawdown(p_returns), use_container_width=True)
@@ -185,7 +132,6 @@ try:
     with tab4:
         st.subheader("Current Holdings")
         st.dataframe(holdings_df, use_container_width=True)
-
         st.subheader("Cost Basis and Unrealized Gain/Loss")
         st.dataframe(
             cost_df.style.format(
@@ -201,50 +147,26 @@ try:
             ),
             use_container_width=True,
         )
-
-        selected_alloc = st.selectbox(
-            "Select portfolio for allocation",
-            sorted(holdings_df["Portfolio"].unique()),
-            key="allocation_portfolio",
-        )
-
+        selected_alloc = st.selectbox("Select portfolio for allocation", sorted(holdings_df["Portfolio"].unique()), key="allocation_portfolio")
         st.plotly_chart(plot_allocation(holdings_df, selected_alloc), use_container_width=True)
 
         if run_sector:
             with st.spinner("Fetching sector metadata..."):
                 sector_map = get_sector_map(sorted(holdings_df["Ticker"].unique()))
                 sector_df = sector_allocation(holdings_df, sector_map)
-
-            st.plotly_chart(
-                plot_sector_allocation(sector_df, selected_alloc),
-                use_container_width=True,
-            )
+            st.plotly_chart(plot_sector_allocation(sector_df, selected_alloc), use_container_width=True)
 
     with tab5:
-        st.download_button(
-            "Download performance summary CSV",
-            summary.to_csv(index=False),
-            "portfolio_summary.csv",
-            mime="text/csv",
-        )
-        st.download_button(
-            "Download current holdings CSV",
-            holdings_df.to_csv(index=False),
-            "current_holdings.csv",
-            mime="text/csv",
-        )
-        st.download_button(
-            "Download cost basis CSV",
-            cost_df.to_csv(index=False),
-            "cost_basis.csv",
-            mime="text/csv",
-        )
-        st.download_button(
-            "Download daily portfolio values CSV",
-            values.to_csv(),
-            "portfolio_values.csv",
-            mime="text/csv",
-        )
+        st.subheader("Transaction Ledger")
+        st.caption("Edit portfolios by changing the CSV file, then upload or commit the new version. Each row is one BUY or SELL transaction.")
+        st.dataframe(transactions, use_container_width=True)
+        st.download_button("Download current transaction ledger CSV", transactions.to_csv(index=False), "transaction_ledger.csv", mime="text/csv")
+
+    with tab6:
+        st.download_button("Download performance summary CSV", summary.to_csv(index=False), "portfolio_summary.csv", mime="text/csv")
+        st.download_button("Download current holdings CSV", holdings_df.to_csv(index=False), "current_holdings.csv", mime="text/csv")
+        st.download_button("Download cost basis CSV", cost_df.to_csv(index=False), "cost_basis.csv", mime="text/csv")
+        st.download_button("Download daily portfolio values CSV", values.to_csv(), "portfolio_values.csv", mime="text/csv")
 
 except Exception as exc:
     st.error(f"App error: {exc}")
