@@ -20,20 +20,33 @@ from portfolio_dashboard.analytics import daily_returns, summary_table
 from portfolio_dashboard.benchmarks import build_blended_benchmark
 from portfolio_dashboard.costbasis import average_cost_basis
 from portfolio_dashboard.sectors import get_sector_map, sector_allocation
-from portfolio_dashboard.plots import plot_values, plot_growth_of_100, plot_drawdown, plot_allocation, plot_sector_allocation, plot_monthly_heatmap
+from portfolio_dashboard.plots import (
+    plot_values,
+    plot_growth_of_100,
+    plot_drawdown,
+    plot_allocation,
+    plot_sector_allocation,
+    plot_monthly_heatmap,
+)
 from portfolio_dashboard.db import supabase_configured, fetch_transactions_public
 from portfolio_dashboard.admin import admin_login, render_admin_panel
 from portfolio_dashboard.snapshots import fetch_snapshots_public
 from portfolio_dashboard.attribution import simple_benchmark_attribution
 
 st.set_page_config(page_title="Portfolio Performance Analytics Dashboard", layout="wide")
+
 st.title("Portfolio Performance Analytics Dashboard")
-st.caption("Transaction-level multi-portfolio analytics with benchmarks, cost basis, risk metrics, snapshots, and admin editing.")
+st.caption("Transaction-level multi-portfolio analytics with benchmarks, cost basis, risk metrics, snapshots, attribution, and admin-only editing.")
+
 is_admin = admin_login()
 
 with st.sidebar:
     st.header("Inputs")
-    data_source = st.radio("Data source", ["Supabase database", "CSV / sample file"], index=0 if supabase_configured() else 1)
+    data_source = st.radio(
+        "Data source",
+        ["Supabase database", "CSV / sample file"],
+        index=0 if supabase_configured() else 1,
+    )
     uploaded = st.file_uploader("Upload transactions CSV", type=["csv"])
     use_sample = st.checkbox("Use sample transactions", value=True)
     primary_benchmark_name = st.selectbox("Primary benchmark", list(DEFAULT_BENCHMARKS.keys()), index=0)
@@ -57,6 +70,7 @@ def format_summary_table(df: pd.DataFrame, primary_ticker: str):
     }
     return df.style.format(format_map, na_rep="N/A")
 
+
 try:
     if data_source == "Supabase database":
         if not supabase_configured():
@@ -79,6 +93,7 @@ try:
     asset_tickers = sorted(transactions["ticker"].unique())
     benchmark_tickers = list(DEFAULT_BENCHMARKS.values())
     all_tickers = sorted(set(asset_tickers + benchmark_tickers))
+
     start_date = transactions["trade_date"].min().strftime("%Y-%m-%d")
     end_date = datetime.today().strftime("%Y-%m-%d")
 
@@ -90,14 +105,17 @@ try:
 
     holdings = build_daily_holdings(transactions, prices)
     values = portfolio_values(holdings, prices)
+
     if values.empty:
         st.error("No portfolio values were generated. Check transaction dates and tickers.")
         st.stop()
+
     p_returns = daily_returns(values)
     benchmark_prices = prices[benchmark_tickers]
     b_returns = benchmark_prices.pct_change().dropna()
     blended_returns = build_blended_benchmark(benchmark_prices, DEFAULT_BLEND)
     b_returns["Blended Benchmark"] = blended_returns
+
     primary_ticker = DEFAULT_BENCHMARKS[primary_benchmark_name]
     summary = summary_table(p_returns, b_returns, primary_ticker)
 
@@ -108,14 +126,15 @@ try:
         for ticker, quantity in current.items():
             latest_price = float(prices[ticker].iloc[-1])
             latest_rows.append({"Portfolio": portfolio, "Ticker": ticker, "Quantity": quantity, "Latest Price": latest_price, "Market Value": quantity * latest_price})
+
     holdings_df = pd.DataFrame(latest_rows)
     cost_df = average_cost_basis(transactions, prices.iloc[-1])
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Market Value", f"${holdings_df['Market Value'].sum():,.0f}")
-    c2.metric("Portfolios", f"{holdings_df['Portfolio'].nunique()}")
-    c3.metric("Current Holdings", f"{len(holdings_df)}")
-    c4.metric("Average Sharpe", f"{summary['Sharpe Ratio'].mean():.2f}")
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("Total Market Value", f"${holdings_df['Market Value'].sum():,.0f}")
+    metric_cols[1].metric("Portfolios", f"{holdings_df['Portfolio'].nunique()}")
+    metric_cols[2].metric("Current Holdings", f"{len(holdings_df)}")
+    metric_cols[3].metric("Average Sharpe", f"{summary['Sharpe Ratio'].mean():.2f}")
 
     st.subheader("Performance Summary")
     st.dataframe(format_summary_table(summary, primary_ticker), use_container_width=True)
@@ -130,36 +149,82 @@ try:
         st.plotly_chart(plot_values(values), use_container_width=True)
         selected = st.selectbox("Select portfolio for monthly return heatmap", list(values.columns), key="monthly_heatmap_portfolio")
         st.plotly_chart(plot_monthly_heatmap(p_returns[selected], f"{selected} Monthly Returns"), use_container_width=True)
+
     with tab_map["Benchmarks"]:
         st.plotly_chart(plot_growth_of_100(values, benchmark_prices, blended_returns), use_container_width=True)
+
     with tab_map["Risk"]:
         st.plotly_chart(plot_drawdown(p_returns), use_container_width=True)
+
     with tab_map["Holdings & Cost Basis"]:
         st.subheader("Current Holdings")
         st.dataframe(holdings_df, use_container_width=True)
+
         st.subheader("Cost Basis and Unrealized Gain/Loss")
-        st.dataframe(cost_df.style.format({"Average Cost": "${:,.2f}", "Latest Price": "${:,.2f}", "Cost Basis": "${:,.2f}", "Market Value": "${:,.2f}", "Unrealized Gain/Loss": "${:,.2f}", "Unrealized Return": "{:.2%}"}, na_rep="N/A"), use_container_width=True)
+        st.dataframe(
+            cost_df.style.format(
+                {
+                    "Average Cost": "${:,.2f}",
+                    "Latest Price": "${:,.2f}",
+                    "Cost Basis": "${:,.2f}",
+                    "Market Value": "${:,.2f}",
+                    "Unrealized Gain/Loss": "${:,.2f}",
+                    "Unrealized Return": "{:.2%}",
+                },
+                na_rep="N/A",
+            ),
+            use_container_width=True,
+        )
+
         selected_alloc = st.selectbox("Select portfolio for allocation", sorted(holdings_df["Portfolio"].unique()), key="allocation_portfolio")
         st.plotly_chart(plot_allocation(holdings_df, selected_alloc), use_container_width=True)
+
         if run_sector:
             with st.spinner("Fetching sector metadata..."):
                 sector_map = get_sector_map(sorted(holdings_df["Ticker"].unique()))
                 sector_df = sector_allocation(holdings_df, sector_map)
             st.plotly_chart(plot_sector_allocation(sector_df, selected_alloc), use_container_width=True)
+
     with tab_map["Attribution"]:
         st.subheader("Simple Benchmark Attribution")
         selected_attr = st.selectbox("Portfolio", sorted(holdings_df["Portfolio"].unique()), key="attr_portfolio")
-        attr_df, attr_summary = simple_benchmark_attribution(selected_attr, holdings, prices, p_returns, b_returns, primary_ticker)
+
+        attr_df, attr_summary = simple_benchmark_attribution(
+            portfolio_name=selected_attr,
+            holdings_by_portfolio=holdings,
+            prices=prices,
+            portfolio_returns=p_returns,
+            benchmark_returns=b_returns,
+            benchmark_ticker=primary_ticker,
+        )
+
         if attr_summary:
             c1, c2, c3 = st.columns(3)
             c1.metric("Portfolio Total Return", f"{attr_summary['Portfolio Total Return']:.2%}")
             c2.metric("Benchmark Total Return", f"{attr_summary['Benchmark Total Return']:.2%}")
             c3.metric("Active Return", f"{attr_summary['Active Return']:.2%}")
+
         if attr_df.empty:
             st.info("No attribution data available.")
         else:
-            st.dataframe(attr_df.style.format({"First Price": "${:,.2f}", "Latest Price": "${:,.2f}", "Market Value": "${:,.2f}", "Approx Unrealized P&L": "${:,.2f}", "Approx Holding Return": "{:.2%}", "Current Weight": "{:.2%}", "P&L Contribution %": "{:.2%}"}, na_rep="N/A"), use_container_width=True)
-            st.plotly_chart(px.bar(attr_df, x="Ticker", y="Approx Unrealized P&L", title=f"{selected_attr} Approximate P&L Contribution by Holding"), use_container_width=True)
+            st.dataframe(
+                attr_df.style.format(
+                    {
+                        "First Price": "${:,.2f}",
+                        "Latest Price": "${:,.2f}",
+                        "Market Value": "${:,.2f}",
+                        "Approx Unrealized P&L": "${:,.2f}",
+                        "Approx Holding Return": "{:.2%}",
+                        "Current Weight": "{:.2%}",
+                        "P&L Contribution %": "{:.2%}",
+                    },
+                    na_rep="N/A",
+                ),
+                use_container_width=True,
+            )
+            fig = px.bar(attr_df, x="Ticker", y="Approx Unrealized P&L", title=f"{selected_attr} Approximate P&L Contribution by Holding")
+            st.plotly_chart(fig, use_container_width=True)
+
     with tab_map["Snapshots"]:
         st.subheader("Portfolio Snapshots")
         if data_source != "Supabase database":
@@ -170,31 +235,36 @@ try:
                 st.info("No snapshots have been created yet. Admin users can create snapshots in the Admin tab.")
             else:
                 st.dataframe(snapshots[["portfolio_id", "snapshot_date", "snapshot_name", "total_market_value", "notes"]], use_container_width=True)
-                choices = snapshots.apply(lambda r: f"{r['portfolio_id']} | {r['snapshot_date']} | {r['snapshot_name']}", axis=1).tolist()
-                selected_snapshot = st.selectbox("Select snapshot", choices)
-                idx = choices.index(selected_snapshot)
-                snap = snapshots.iloc[idx]
+                labels = snapshots.apply(lambda r: f"{r['portfolio_id']} | {r['snapshot_date']} | {r['snapshot_name']}", axis=1).tolist()
+                selected_snapshot = st.selectbox("Select snapshot", labels)
+                selected_idx = labels.index(selected_snapshot)
+                snap = snapshots.iloc[selected_idx]
+
                 st.markdown(f"**Notes:** {snap.get('notes') or ''}")
                 if isinstance(snap.get("holdings_json"), list):
                     st.dataframe(pd.DataFrame(snap["holdings_json"]), use_container_width=True)
                 if isinstance(snap.get("metrics_json"), dict):
                     st.json(snap["metrics_json"])
+
     with tab_map["Transactions"]:
         st.subheader("Transaction Ledger")
-        st.caption("Public users can view transactions. Admin users can add transactions in the Admin tab.")
+        st.caption("Public users can view transactions. Admin users can add/delete transactions in the Admin tab.")
         st.dataframe(transactions, use_container_width=True)
         st.download_button("Download transaction ledger CSV", transactions.to_csv(index=False), "transaction_ledger.csv", mime="text/csv")
+
     with tab_map["Exports"]:
         st.download_button("Download performance summary CSV", summary.to_csv(index=False), "portfolio_summary.csv", mime="text/csv")
         st.download_button("Download current holdings CSV", holdings_df.to_csv(index=False), "current_holdings.csv", mime="text/csv")
         st.download_button("Download cost basis CSV", cost_df.to_csv(index=False), "cost_basis.csv", mime="text/csv")
         st.download_button("Download daily portfolio values CSV", values.to_csv(), "portfolio_values.csv", mime="text/csv")
+
     if is_admin:
         with tab_map["Admin"]:
             if data_source != "Supabase database":
-                st.warning("Admin database editing requires Supabase mode.")
+                st.warning("Admin database editing requires Supabase database mode.")
             else:
                 render_admin_panel(transactions, holdings_df, summary)
+
 except Exception as exc:
     st.error(f"App error: {exc}")
     st.exception(exc)
