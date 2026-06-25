@@ -1,33 +1,22 @@
-# Portfolio Performance Analytics Dashboard
+# Max Boudreau GitHub Pages Site
 
-Transaction-based portfolio analytics dashboard built in Python and Streamlit.
+This is a starter professional project hub for finance, analytics, and investment research projects.
 
-## What it does
+## Before publishing
 
-- Tracks multiple portfolios from buy/sell transactions
-- Reconstructs holdings and cost basis
-- Compares performance against SPY, QQQ, TSX, and a blended benchmark
-- Calculates alpha, beta, Sharpe ratio, volatility, drawdown, tracking error, and information ratio
-- Displays allocation, cost basis, unrealized P&L, and optional sector exposure
-- Exports CSV summaries
+Edit these placeholders:
 
-## How to run locally
+- `PASTE_STREAMLIT_APP_URL_HERE` in `portfolio-dashboard.html`
+- LinkedIn URL in `resume.html`
+- Add your resume PDF to `assets/files/resume.pdf`
+- Add screenshots to `assets/images/`
 
-```bash
-pip install -r requirements.txt
-streamlit run app/streamlit_app.py
-```
+## GitHub Pages setup
 
-## Transaction CSV format
+Repository name should be:
 
-Required columns:
+`max-boudreau.github.io`
 
-```text
-portfolio_id, owner, trade_date, ticker, side, quantity, price, fees, notes
-```
+Then go to:
 
-Use `BUY` or `SELL` in the `side` column.
-
-## Resume bullet
-
-Built a transaction-based Portfolio Performance Analytics Dashboard in Python and Streamlit to track multiple portfolios from trade-level data, reconstruct holdings and cost basis, benchmark performance versus SPY, QQQ, TSX, and blended indices, and compute risk-adjusted metrics including alpha, beta, Sharpe ratio, volatility, drawdown, tracking error, and information ratio.
+Settings → Pages → Deploy from branch → main → /root → Save
